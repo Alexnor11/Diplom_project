@@ -1,0 +1,59 @@
+version: '3.9'
+
+services:
+  nginx:
+    depends_on:
+      - backend
+    image: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - .:/orders
+
+  backend:
+    depends_on:
+      - db-postgres
+#      - migrations
+    image: orders
+    build:
+#      context: stocks_products
+      dockerfile: ./Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+            gunicorn orders.wsgi -b 0.0.0.0:8000"
+    volumes:
+      - .:/orders
+    networks:
+      - backend
+
+  db-postgres:
+    image: postgres
+    env_file:
+      - .env
+    container_name: db-postgres
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  celery:
+    build: .
+    restart: always
+    command: celery -A orders worker -l info
+    depends_on:
+      - redis
+
+  redis:
+    image: redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+volumes:
+  pg-data:
+networks:
+  backend:
